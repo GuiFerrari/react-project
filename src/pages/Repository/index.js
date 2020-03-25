@@ -1,7 +1,90 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import Proptypes from 'prop-types';
 
-// import { Container } from './styles';
+import api from '../../services/api';
+
+import Container from '../../components/Container';
+import { Loading, Owner, IssueList } from './styles';
 
 export default function Repository({ match }) {
-    return <h1>Repository: {decodeURIComponent(match.params.repository)}</h1>;
+    const [repository, setRepository] = useState({});
+    const [issues, setIssues] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    async function getRepository() {
+        const repoName = decodeURIComponent(match.params.repository);
+
+        const [repo, iss] = await Promise.all([
+            api.get(`/repos/${repoName}`),
+            api.get(`/repos/${repoName}/issues`, {
+                params: {
+                    state: 'open',
+                    per_page: 5,
+                },
+            }),
+        ]);
+
+        setRepository(repo.data);
+        setIssues(iss.data);
+        setLoading(false);
+    }
+
+    useEffect(() => {
+        getRepository();
+    }, []);
+
+    if (loading) {
+        return <Loading>Carregando</Loading>;
+    }
+
+    return (
+        <Container>
+            <Owner>
+                <Link to="/">Voltar ao repositórios</Link>
+                <img
+                    src={repository.owner.avatar_url}
+                    alt={repository.owner.login}
+                />
+                <h1>{repository.name}</h1>
+                <p>{repository.description}</p>
+            </Owner>
+
+            <IssueList>
+                {issues.map(issue => (
+                    <li key={String(issue.id)}>
+                        <img
+                            src={issue.user.avatar_url}
+                            alt={issue.user.login}
+                        />
+                        <div>
+                            <strong>
+                                <a
+                                    href={issue.html_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    {issue.title}
+                                </a>
+                                {issue.labels.map(label => (
+                                    <span key={String(label.id)}>
+                                        {label.name}
+                                    </span>
+                                ))}
+                            </strong>
+                            <p>{issue.user.login}</p>
+                        </div>
+                    </li>
+                ))}
+            </IssueList>
+        </Container>
+    );
 }
+
+Repository.prototype = {
+    match: Proptypes.shape({
+        params: Proptypes.shape({
+            repository: Proptypes.string,
+        }),
+    }).isRequired,
+};
